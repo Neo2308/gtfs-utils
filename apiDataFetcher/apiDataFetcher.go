@@ -18,15 +18,17 @@ type ApiDataFetcher[T any] struct {
 	DataLocation  *T
 	UrlType       string
 	CacheFileName string
+	Retries       int
 	RefetchFunc   func() error
 }
 
-func NewApiDataFetcher[T any](dataLocation *T, urlType string, cacheFileName string, refetchFunc func() error) *ApiDataFetcher[T] {
+func NewApiDataFetcher[T any](dataLocation *T, urlType string, cacheFileName string, refetchFunc func() error, retries int) *ApiDataFetcher[T] {
 	return &ApiDataFetcher[T]{
 		DataLocation:  dataLocation,
 		UrlType:       urlType,
 		CacheFileName: cacheFileName,
 		RefetchFunc:   refetchFunc,
+		Retries:       retries,
 	}
 }
 
@@ -56,9 +58,7 @@ func (a *ApiDataFetcher[T]) PopulateData() error {
 	return a.RefetchFunc()
 }
 
-// TODO: Add support for a reqFunc to recreate the request for retries
-// func (a *ApiDataFetcher[T]) FetchData(req *http.Request, client *http.Client, reqFunc func() *http.Request) error {
-func (a *ApiDataFetcher[T]) FetchData(req *http.Request, client *http.Client) error {
+func (a *ApiDataFetcher[T]) FetchData(req *http.Request, client *http.Client, reqFunc func() *http.Request) error {
 	a.throttleRequests()
 	res, err := client.Do(req)
 	if err != nil {
@@ -72,18 +72,17 @@ func (a *ApiDataFetcher[T]) FetchData(req *http.Request, client *http.Client) er
 			fmt.Println(err)
 			return err
 		}
-		// TODO: Add support for retries on 500 errors
-		// } else if res.StatusCode == 500 {
-		// 	for i := 1; res.StatusCode == 500 && i < 30; i++ {
-		// 		fmt.Printf("Internal server error, retrying (failed %d times)...\n", i)
-		// 		client = &http.Client{}
-		// 		req = reqFunc()
-		// 		res, err = client.Do(req)
-		// 		if err != nil {
-		// 			fmt.Println(err)
-		// 			return err
-		// 		}
-		// 	}
+	} else if res.StatusCode == 500 {
+		for i := 0; res.StatusCode == 500 && i < a.Retries; i++ {
+			fmt.Printf("Internal server error, retrying (failed %d times)...\n", i)
+			client = &http.Client{}
+			req = reqFunc()
+			res, err = client.Do(req)
+			if err != nil {
+				fmt.Println(err)
+				return err
+			}
+		}
 	}
 	if res.StatusCode == 200 {
 		// fmt.Printf("%+v", res.Body)
