@@ -1,0 +1,129 @@
+package plotter
+
+import (
+	"fmt"
+	"image/color"
+	"strconv"
+
+	"github.com/Neo2308/gtfs-utils/models"
+	"github.com/morikuni/go-geoplot"
+)
+
+type MapData struct {
+	Map         *geoplot.Map
+	StationIcon *geoplot.Icon
+	BusIcon     *geoplot.Icon
+	Stations    map[string]*models.Station
+}
+
+func NewMapData() *MapData {
+	tokyoTower := &geoplot.LatLng{
+		Latitude:  24,
+		Longitude: 78,
+	}
+
+	m := &geoplot.Map{
+		Center: tokyoTower,
+		Zoom:   7,
+		Area: &geoplot.Area{
+			From: tokyoTower.Offset(-14, -10),
+			To:   tokyoTower.Offset(14, 20),
+		},
+	}
+	return &MapData{
+		Map:         m,
+		StationIcon: geoplot.ColorIcon(58, 195, 112),
+		BusIcon:     geoplot.ColorIcon(255, 0, 0),
+		Stations:    map[string]*models.Station{},
+	}
+}
+
+func (m *MapData) AddStation(station *models.Station) {
+	// fmt.Printf("Trying to added station:%s\n", station.Code)
+	// Ignore stations that have already been added
+	if _, ok := m.Stations[station.Code]; ok {
+		return
+	}
+	m.Stations[station.Code] = station
+	lat, _ := strconv.ParseFloat(station.Lat, 32)
+	lng, _ := strconv.ParseFloat(station.Lng, 32)
+
+	m.Map.AddMarker(&geoplot.Marker{
+		LatLng: &geoplot.LatLng{
+			Latitude:  lat,
+			Longitude: lng,
+		},
+		Popup:   fmt.Sprintf("<b> %s [%s]</b>", station.Name, station.Code),
+		Tooltip: station.Name,
+		Icon:    m.StationIcon,
+	})
+	// fmt.Printf("Added station:%s at (%f,%f) \n", station.Code, lat, lng)
+}
+
+func (m *MapData) AddRoute(trainNumber int, routePoints []*geoplot.LatLng) {
+	// fmt.Printf("Trying to added route:%d\n", trainNumber)
+	// // Ignore stations that have already been added
+	// if _, ok := m.Stations[station.Code]; ok {
+	//	return
+	// }
+	// m.Stations[station.Code] = station
+	// lat, _ := strconv.ParseFloat(station.Lat, 32)
+	// lng, _ := strconv.ParseFloat(station.Lng, 32)
+
+	m.Map.AddPolyline(&geoplot.Polyline{
+		LatLngs: routePoints,
+		Popup:   "Route of " + strconv.Itoa(trainNumber),
+		Color:   &color.RGBA{255, 116, 0, 1},
+	})
+	// fmt.Println("Added route of ", trainNumber)
+}
+
+func (m *MapData) GetMap() *geoplot.Map {
+	return m.Map
+}
+
+const STEP = 0.0001
+
+func (m *MapData) AddBus(lat, lng float64, registrationNumber string, popupString string) {
+	// m.Map.AddMarker(&geoplot.Marker{
+	// 	LatLng: &geoplot.LatLng{
+	// 		Latitude:  lat,
+	// 		Longitude: lng,
+	// 	},
+	// 	Popup:   fmt.Sprintf("<b> %s </b>", popupString),
+	// 	Tooltip: registrationNumber,
+	// 	Icon:    m.BusIcon,
+	// })
+	m.Map.AddPolyline(&geoplot.Polyline{
+		LatLngs: []*geoplot.LatLng{
+			{
+				Latitude:  lat - STEP,
+				Longitude: lng - STEP,
+			},
+			{
+				Latitude:  lat + STEP,
+				Longitude: lng + STEP,
+			},
+			{
+				Latitude:  lat + 2*STEP,
+				Longitude: lng,
+			},
+			{
+				Latitude:  lat + 2*STEP,
+				Longitude: lng + 2*STEP,
+			},
+			{
+				Latitude:  lat,
+				Longitude: lng + 2*STEP,
+			},
+			{
+				Latitude:  lat + STEP,
+				Longitude: lng + STEP,
+			},
+		},
+		Popup:   fmt.Sprintf("<b> %s </b>", popupString),
+		Tooltip: registrationNumber,
+		Color:   &color.RGBA{R: 255, A: 1},
+	})
+
+}
