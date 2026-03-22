@@ -5,15 +5,18 @@ import (
 	"image/color"
 	"strconv"
 
+	"github.com/MobilityData/gtfs-realtime-bindings/golang/gtfs"
 	"github.com/Neo2308/gtfs-utils/models"
 	"github.com/morikuni/go-geoplot"
 )
 
 type MapData struct {
-	Map         *geoplot.Map
-	StationIcon *geoplot.Icon
-	BusIcon     *geoplot.Icon
-	Stations    map[string]*models.Station
+	Map            *geoplot.Map
+	StationIcon    *geoplot.Icon
+	BusIcon        *geoplot.Icon
+	TrainIconLeft  *geoplot.Icon
+	TrainIconRight *geoplot.Icon
+	Stations       map[string]*models.Station
 }
 
 func NewMapData() *MapData {
@@ -31,10 +34,12 @@ func NewMapData() *MapData {
 		},
 	}
 	return &MapData{
-		Map:         m,
-		StationIcon: geoplot.ColorIcon(58, 195, 112),
-		BusIcon:     geoplot.ColorIcon(255, 0, 0),
-		Stations:    map[string]*models.Station{},
+		Map:            m,
+		StationIcon:    geoplot.ColorIcon(58, 195, 112),
+		BusIcon:        geoplot.ColorIcon(255, 0, 0),
+		TrainIconLeft:  ColorTrainIcon(44, 169, 188, false),
+		TrainIconRight: ColorTrainIcon(44, 169, 188, true),
+		Stations:       map[string]*models.Station{},
 	}
 }
 
@@ -84,6 +89,9 @@ func (m *MapData) GetMap() *geoplot.Map {
 
 const STEP = 0.0001
 
+/*
+Deprecated: Use AddTrain instead. This function is only present for temporary compatibility with aictsl
+*/
 func (m *MapData) AddBus(lat, lng float64, registrationNumber string, popupString string) {
 	// m.Map.AddMarker(&geoplot.Marker{
 	// 	LatLng: &geoplot.LatLng{
@@ -125,5 +133,68 @@ func (m *MapData) AddBus(lat, lng float64, registrationNumber string, popupStrin
 		Tooltip: registrationNumber,
 		Color:   &color.RGBA{R: 255, A: 1},
 	})
+}
 
+func (m *MapData) AddTrain(position *gtfs.Position, registrationNumber string, popupString string) {
+	var icon *geoplot.Icon
+	if *position.Bearing <= 180.0 {
+		icon = m.TrainIconRight
+	} else {
+		icon = m.TrainIconLeft
+	}
+	m.Map.AddMarker(&geoplot.Marker{
+		LatLng: &geoplot.LatLng{
+			Latitude:  float64(*position.Latitude),
+			Longitude: float64(*position.Longitude),
+		},
+		Popup:   fmt.Sprintf("<b> %s </b>", popupString),
+		Tooltip: registrationNumber,
+		Icon:    icon,
+	})
+}
+
+func trainIcon(r, g, b int, right bool) string {
+	var format string
+	if right {
+		format = `
+<svg xmlns="http://www.w3.org/2000/svg" width="100%%" height="100%%" viewBox="0 -3 20 20">
+  <g id="train" transform="translate(-2 -5)">
+    <path id="secondary" fill="rgb(%d,%d,%d)" d="M13,14a1,1,0,0,1-1-1V10H4a1,1,0,0,0-1,1v6a1,1,0,0,0,1,1H20a1,1,0,0,0,1-1,7,7,0,0,0-.68-3Z"/>
+    <path id="primary" d="M7,14H8m2-8h6M12,6v4m9,7h0a7,7,0,0,0-7-7H4a1,1,0,0,0-1,1v6a1,1,0,0,0,1,1H20A1,1,0,0,0,21,17Zm-7-7H12v3a1,1,0,0,0,1,1h7.32A7,7,0,0,0,14,10Z" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+  </g>
+</svg>
+`
+	} else {
+		format = `
+<svg xmlns="http://www.w3.org/2000/svg" width="100%%" height="100%%" viewBox="0 -3 20 20">
+	<g id="train-left" transform="translate(-2 -5)">
+	<path id="secondary" fill="rgb(%d,%d,%d)" d="M11,14a1,1,0,0,0,1-1V10h8a1,1,0,0,1,1,1v6a1,1,0,0,1-1,1H4a1,1,0,0,1-1-1,7,7,0,0,1,.68-3Z"/>
+	<path id="primary" d="M16,14h1M8,6h6m-2,4V6m-2,4H20a1,1,0,0,1,1,1v6a1,1,0,0,1-1,1H4a1,1,0,0,1-1-1,7,7,0,0,1,7-7Zm0,0h2v3a1,1,0,0,1-1,1H3.68A7,7,0,0,1,10,10Z" fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+	</g>
+</svg>
+`
+	}
+	return fmt.Sprintf(format, r, g, b)
+}
+
+func ColorTrainIcon(r, g, b int, right bool) *geoplot.Icon {
+	return &geoplot.Icon{
+		HTML: trainIcon(r, g, b, right),
+		Size: &geoplot.Size{
+			Width:  20,
+			Height: 20,
+		},
+		Anchor: &geoplot.Point{
+			X: 10,
+			Y: 16,
+		},
+		PopupAnchor: &geoplot.Point{
+			X: 0,
+			Y: -16,
+		},
+		TooltipAnchor: &geoplot.Point{
+			X: 10,
+			Y: -4,
+		},
+	}
 }
