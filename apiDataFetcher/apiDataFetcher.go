@@ -19,14 +19,16 @@ type ApiDataFetcher[T any] struct {
 	UrlType       string
 	CacheFileName string
 	Retries       int
+	AlwaysRefetch bool
 	RefetchFunc   func() error
 }
 
-func NewApiDataFetcher[T any](dataLocation *T, urlType string, cacheFileName string, refetchFunc func() error, retries int) *ApiDataFetcher[T] {
+func NewApiDataFetcher[T any](dataLocation *T, urlType string, cacheFileName string, refetchFunc func() error, alwaysRefetch bool, retries int) *ApiDataFetcher[T] {
 	return &ApiDataFetcher[T]{
 		DataLocation:  dataLocation,
 		UrlType:       urlType,
 		CacheFileName: cacheFileName,
+		AlwaysRefetch: alwaysRefetch,
 		RefetchFunc:   refetchFunc,
 		Retries:       retries,
 	}
@@ -41,8 +43,10 @@ func (a *ApiDataFetcher[T]) LoadData() error {
 }
 
 func (a *ApiDataFetcher[T]) PopulateData() error {
-	// file_name := fmt.Sprintf("searches/%s.json", searchString)
-	// file_name := '{}.json'.format(train_number)
+	if a.AlwaysRefetch {
+		fmt.Printf("Cache disabled for %s, fetching from API...\n", a.CacheFileName)
+		return a.RefetchFunc()
+	}
 	// Load json from cache if available
 	data, err := fileUtils.LoadFile(a.CacheFileName, fileUtils.CACHE)
 	if err == nil {
