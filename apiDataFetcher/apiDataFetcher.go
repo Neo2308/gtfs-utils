@@ -10,27 +10,27 @@ import (
 	"github.com/Neo2308/gtfs-utils/fileUtils"
 )
 
-// TODO: Add support for different throttling intervals for different API types
-var throttlingInterval = 5 * time.Second // seconds
 var throttleTriggerTime = map[string]time.Time{}
 
 type ApiDataFetcher[T any] struct {
-	DataLocation  *T
-	UrlType       string
-	CacheFileName string
-	Retries       int
-	AlwaysRefetch bool
-	RefetchFunc   func() error
+	DataLocation     *T
+	UrlType          string
+	CacheFileName    string
+	Retries          int
+	AlwaysRefetch    bool
+	RefetchFunc      func() error
+	ThrottleInterval time.Duration
 }
 
-func NewApiDataFetcher[T any](dataLocation *T, urlType string, cacheFileName string, refetchFunc func() error, alwaysRefetch bool, retries int) *ApiDataFetcher[T] {
+func NewApiDataFetcher[T any](dataLocation *T, urlType string, cacheFileName string, refetchFunc func() error, alwaysRefetch bool, retries int, throttleIntervalMs int) *ApiDataFetcher[T] {
 	return &ApiDataFetcher[T]{
-		DataLocation:  dataLocation,
-		UrlType:       urlType,
-		CacheFileName: cacheFileName,
-		AlwaysRefetch: alwaysRefetch,
-		RefetchFunc:   refetchFunc,
-		Retries:       retries,
+		DataLocation:     dataLocation,
+		UrlType:          urlType,
+		CacheFileName:    cacheFileName,
+		AlwaysRefetch:    alwaysRefetch,
+		RefetchFunc:      refetchFunc,
+		Retries:          retries,
+		ThrottleInterval: time.Duration(throttleIntervalMs) * time.Millisecond,
 	}
 }
 
@@ -107,8 +107,8 @@ func (a *ApiDataFetcher[T]) throttleRequests() {
 	}
 	fmt.Printf("Checking if request for %s should be throttled at %v \n", a.UrlType, time.Now())
 	// fmt.Printf("Checking this %v %v %v\n", a.UrlType, time.Now(), throttleTriggerTime[a.UrlType], throttleTriggerTime[a.UrlType].Add(throttlingInterval))
-	if !time.Now().After(throttleTriggerTime[a.UrlType].Add(throttlingInterval)) {
-		sleepDuration := throttleTriggerTime[a.UrlType].Add(throttlingInterval).Sub(time.Now())
+	if !time.Now().After(throttleTriggerTime[a.UrlType].Add(a.ThrottleInterval)) {
+		sleepDuration := throttleTriggerTime[a.UrlType].Add(a.ThrottleInterval).Sub(time.Now())
 		fmt.Printf("Throttling request for %s, sleeping for %v seconds...\n", a.UrlType, sleepDuration.Seconds())
 		time.Sleep(sleepDuration)
 	}
